@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -18,11 +20,21 @@ const (
 	get asecamAction = "get"
 )
 
+var timezoneOptionRegexp regexp.Regexp = *regexp.MustCompile(`(?im)<\s*option\s*value\s*=\s*"(\d+)"\s*>\s*(UTC([+-])(\d+):(\d+))\s*</\s*option\s*>`)
+
+
+type asecamTimezones map[int]*time.Location
+
+type asecamSystemTimeSettings struct {
+	Timezone int `json:"timezone"`
+	TimeSec  int `json:"time_sec"`
+}
+
 type AsecamRepository struct {
 	validate *validator.Validate
 	domain   string
 	user     string
-	password string
+	hashedPassword string
 }
 
 type schedule struct {
@@ -63,12 +75,17 @@ type AsecamImageSettings struct {
 	NightToDayBrightness int       `json:"night_to_day_brightness"`
 }
 
-func NewAsecamRepository(validate *validator.Validate, domain, user, password string) *AsecamRepository {
+func (s *schedule) Set(new time.Time) {
+	s.Hour = new.Hour()
+	s.Minute = new.Minute()
+}
+
+func NewAsecamRepository(validate *validator.Validate, domain, user, hashedPassword string) *AsecamRepository {
 	return &AsecamRepository{
 		validate: validate,
 		domain:   domain,
 		user:     user,
-		password: password,
+		hashedPassword: hashedPassword,
 	}
 }
 
@@ -79,7 +96,7 @@ func (s *AsecamRepository) buildUrl(params map[string]string) string {
 	}
 
 	query.Add("username", s.user)
-	query.Add("password", s.password)
+	query.Add("password", s.hashedPassword)
 
 	_url := url.URL{
 		Scheme:   "http",
@@ -179,6 +196,96 @@ func (s *AsecamRepository) SetImageSettings(imageSettings AsecamImageSettings) e
 	return nil
 }
 
+func (s *AsecamRepository) GetTimezones() (asecamTimezones, error) {
+	result := make(asecamTimezones, 34)
+
+	url := (&url.URL{
+		Scheme: "http",
+		Host: s.domain,
+		Path: "/view/time_setting.html",
+	}).String()
+
+	response, err := http.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("unable to make request to %s: %w", url, err)
+	}
+
+	defer response.Body.Close()
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read response from %s: %w", url, err)
+	}
+
+	matches := timezoneOptionRegexp.FindAllStringSubmatch(string(body), -1)
+
+	var timezoneId, hour, minute int
+	for _, match := range matches {
+		sign := 1
+		if match[3] == "-" {
+			sign = -1
+		}
+
+		if timezoneId, err = strconv.Atoi(match[1]); err != nil {
+			return nil, fmt.Errorf("unable to parse timezone id: %w", err)
+		}
+
+		if hour, err = strconv.Atoi(match[4]); err != nil {
+			return nil, fmt.Errorf("unable to parse timezone hour: %w", err)
+		}
+
+		if minute, err = strconv.Atoi(match[5]); err != nil {
+			return nil, fmt.Errorf("unable to parse timezone minute: %w", err)
+		}
+
+		result[timezoneId] = time.FixedZone(match[2], sign*(minute*60 + hour*60*60))
+	}
+
+	return result, nil
+}
+
+func (s *AsecamRepository) GetTimezone() (*time.Location, error) {
+	timezoneById, err := s.GetTimezones()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get timezones list: %w", err)
+	}
+
+	id, err := s.getTimezoneId()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current timezone id: %w", err)
+	}
+
+	timezone, exists := timezoneById[id]
+	if !exists {
+		return nil, fmt.Errorf("failed to get timezone offset by id")
+	}
+
+	return timezone, nil
+}
+
+func (s *AsecamRepository) getTimezoneId() (int, error) {
+	url := s.buildUrl(map[string]string{
+		"action": string(get),
+		"cmd":    "systime",
+	})
+
+	response, err := http.Get(url)
+	if err != nil {
+		return 0, fmt.Errorf("unable to get system time settings: %w", err)
+	}
+
+	var systemTimeSettings *asecamSystemTimeSettings
+	if err := json.NewDecoder(response.Body).Decode(&systemTimeSettings); err != nil {
+		return 0, fmt.Errorf("unable to parse response with system time settings: %w", err)
+	}
+
+	if systemTimeSettings == nil {
+		return 0, fmt.Errorf("invalid response with system time settings")
+	}
+
+	return systemTimeSettings.Timezone, nil
+}
+
 ///////////////////
 
 type SunRepository struct {
@@ -226,7 +333,7 @@ func (s SunRepository) buildUrl(latitude, longitude float64) (string, *url.URL) 
 	return _url.String(), &_url
 }
 
-func (s SunRepository) GetSunTimints(latitude, longitude float64) (*SunTimings, error) {
+func (s SunRepository) GetSunTimings(latitude, longitude float64) (*SunTimings, error) {
 	url, urlInfo := s.buildUrl(latitude, longitude)
 
 	response, err := http.Get(url)
@@ -283,7 +390,49 @@ func (s SunRepository) GetSunTimints(latitude, longitude float64) (*SunTimings, 
 ///////////////////
 
 func main() {
-
 	validator := validator.New(validator.WithRequiredStructEnabled())
 
+	asecamRepo := NewAsecamRepository(
+		validator, 
+		"", // Domain/IP address
+		"", // User
+		"", // Hashed password
+	)
+
+	sunRepo := NewSunRepository(validator)
+
+	sunTimings, err := sunRepo.GetSunTimings(
+		0, // Latitude
+		0, // Longitude
+	)
+	if err != nil {
+		fmt.Printf("Failed to get sun timings: %e", err)
+		panic(err)
+	}
+
+	timezone, err := asecamRepo.GetTimezone()
+	if err != nil {
+		fmt.Printf("Failed to get current timezone: %e", err)
+		panic(err)
+	}
+
+	imageSettings, err := asecamRepo.GetImageSettings()
+	if err != nil {
+		fmt.Printf("Failed to get asecam image settings: %e", err)
+		panic(err)
+	}
+
+	sunrise := sunTimings.Sunrise.In(timezone)
+	sunset := sunTimings.Sunset.In(timezone)
+	
+	fmt.Printf("New sunrise %s, in target TZ %s\n", sunTimings.Sunrise, sunrise)
+	fmt.Printf("New sunrise %s, in target TZ %s\n", sunTimings.Sunset, sunset)
+
+	imageSettings.DayBegin.Set(sunrise)
+	imageSettings.DayEnd.Set(sunset)
+
+	if err := asecamRepo.SetImageSettings(*imageSettings); err != nil {
+		fmt.Printf("Failed to set updated image settings: %e", err)
+		panic(err)
+	}
 }
