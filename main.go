@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/ilyakaznacheev/cleanenv"
 )
 
 type asecamAction string
@@ -22,7 +23,6 @@ const (
 
 var timezoneOptionRegexp regexp.Regexp = *regexp.MustCompile(`(?im)<\s*option\s*value\s*=\s*"(\d+)"\s*>\s*(UTC([+-])(\d+):(\d+))\s*</\s*option\s*>`)
 
-
 type asecamTimezones map[int]*time.Location
 
 type asecamSystemTimeSettings struct {
@@ -31,9 +31,9 @@ type asecamSystemTimeSettings struct {
 }
 
 type AsecamRepository struct {
-	validate *validator.Validate
-	domain   string
-	user     string
+	validate       *validator.Validate
+	domain         string
+	user           string
 	hashedPassword string
 }
 
@@ -82,9 +82,9 @@ func (s *schedule) Set(new time.Time) {
 
 func NewAsecamRepository(validate *validator.Validate, domain, user, hashedPassword string) *AsecamRepository {
 	return &AsecamRepository{
-		validate: validate,
-		domain:   domain,
-		user:     user,
+		validate:       validate,
+		domain:         domain,
+		user:           user,
 		hashedPassword: hashedPassword,
 	}
 }
@@ -179,8 +179,8 @@ func (s *AsecamRepository) SetImageSettings(imageSettings AsecamImageSettings) e
 	defer response.Body.Close()
 
 	var body *struct {
-		Status string 
-		Data string
+		Status string
+		Data   string
 	}
 
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
@@ -199,8 +199,8 @@ func (s *AsecamRepository) GetTimezones() (asecamTimezones, error) {
 
 	url := (&url.URL{
 		Scheme: "http",
-		Host: s.domain,
-		Path: "/view/time_setting.html",
+		Host:   s.domain,
+		Path:   "/view/time_setting.html",
 	}).String()
 
 	response, err := http.Get(url)
@@ -235,7 +235,7 @@ func (s *AsecamRepository) GetTimezones() (asecamTimezones, error) {
 			return nil, fmt.Errorf("unable to parse timezone minute: %w", err)
 		}
 
-		result[timezoneId] = time.FixedZone(match[2], sign*(minute*60 + hour*60*60))
+		result[timezoneId] = time.FixedZone(match[2], sign*(minute*60+hour*60*60))
 	}
 
 	return result, nil
@@ -314,7 +314,7 @@ func NewSunRepository(validate *validator.Validate) SunRepository {
 	}
 }
 
-func (s SunRepository) buildUrl(latitude, longitude float64) string {
+func (s SunRepository) buildUrl(latitude, longitude float32) string {
 	values := url.Values{}
 
 	values.Add("lat", fmt.Sprintf("%f", latitude))
@@ -329,7 +329,7 @@ func (s SunRepository) buildUrl(latitude, longitude float64) string {
 	}).String()
 }
 
-func (s SunRepository) GetSunTimings(latitude, longitude float64) (*SunTimings, error) {
+func (s SunRepository) GetSunTimings(latitude, longitude float32) (*SunTimings, error) {
 	url := s.buildUrl(latitude, longitude)
 
 	response, err := http.Get(url)
@@ -378,21 +378,41 @@ func (s SunRepository) GetSunTimings(latitude, longitude float64) (*SunTimings, 
 
 ///////////////////
 
+type Config struct {
+	Host           string `env:"CAMERA_HOST"`
+	User           string `env:"CAMERA_USER"`
+	HashedPassword string `env:"CAMERA_HASHED_PASSWORD"`
+
+	Location struct {
+		Latitude  float32 `env:"CAMERA_LOCATION_LATITUDE"`
+		Longitude float32 `env:"CAMERA_LOCATION_LONGITUDE"`
+	}
+}
+
+///////////////////
+
 func main() {
+	var config Config
+
+	if err := cleanenv.ReadConfig(".env", &config); err != nil {
+		fmt.Printf("Failed to load .env config: %e", err)
+		panic(err)
+	}
+
 	validator := validator.New(validator.WithRequiredStructEnabled())
 
 	asecamRepo := NewAsecamRepository(
-		validator, 
-		"", // Domain/IP address
-		"", // User
-		"", // Hashed password
+		validator,
+		config.Host,
+		config.User,
+		config.HashedPassword,
 	)
 
 	sunRepo := NewSunRepository(validator)
 
 	sunTimings, err := sunRepo.GetSunTimings(
-		0, // Latitude
-		0, // Longitude
+		config.Location.Latitude,
+		config.Location.Longitude,
 	)
 	if err != nil {
 		fmt.Printf("Failed to get sun timings: %e", err)
@@ -413,7 +433,7 @@ func main() {
 
 	sunrise := sunTimings.Sunrise.In(cameraTimezone)
 	sunset := sunTimings.Sunset.In(cameraTimezone)
-	
+
 	fmt.Printf("New sunrise %s, in target TZ %s\n", sunTimings.Sunrise, sunrise)
 	fmt.Printf("New sunrise %s, in target TZ %s\n", sunTimings.Sunset, sunset)
 
