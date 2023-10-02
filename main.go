@@ -118,17 +118,10 @@ func (s *AsecamRepository) GetImageSettings() (*AsecamImageSettings, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to get image settings: %w", err)
 	}
-
 	defer response.Body.Close()
 
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, fmt.Errorf("unable to get image settings: %w", err)
-	}
-
 	result := AsecamImageSettings{}
-
-	if err := json.Unmarshal(body, &result); err != nil {
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("unable to response: %w", err)
 	}
 
@@ -183,15 +176,20 @@ func (s *AsecamRepository) SetImageSettings(imageSettings AsecamImageSettings) e
 	if err != nil {
 		return fmt.Errorf("unable to set image settings: %w", err)
 	}
-
 	defer response.Body.Close()
 
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		return fmt.Errorf("unable to set image settings: %w", err)
+	var body *struct {
+		Status string 
+		Data string
 	}
 
-	_ = body
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		return fmt.Errorf("failed to set image settings: %w", err)
+	}
+
+	if body == nil || body.Status != "ok" {
+		return fmt.Errorf("failed to set image settings")
+	}
 
 	return nil
 }
@@ -209,7 +207,6 @@ func (s *AsecamRepository) GetTimezones() (asecamTimezones, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to make request to %s: %w", url, err)
 	}
-
 	defer response.Body.Close()
 
 	body, err := io.ReadAll(response.Body)
@@ -273,6 +270,7 @@ func (s *AsecamRepository) getTimezoneId() (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("unable to get system time settings: %w", err)
 	}
+	defer response.Body.Close()
 
 	var systemTimeSettings *asecamSystemTimeSettings
 	if err := json.NewDecoder(response.Body).Decode(&systemTimeSettings); err != nil {
@@ -316,41 +314,32 @@ func NewSunRepository(validate *validator.Validate) SunRepository {
 	}
 }
 
-func (s SunRepository) buildUrl(latitude, longitude float64) (string, *url.URL) {
+func (s SunRepository) buildUrl(latitude, longitude float64) string {
 	values := url.Values{}
 
 	values.Add("lat", fmt.Sprintf("%f", latitude))
 	values.Add("lng", fmt.Sprintf("%f", longitude))
 	values.Add("formatted", "0")
 
-	_url := url.URL{
+	return (&url.URL{
 		Scheme:   "https",
 		Host:     "api.sunrise-sunset.org",
 		Path:     "json",
 		RawQuery: values.Encode(),
-	}
-
-	return _url.String(), &_url
+	}).String()
 }
 
 func (s SunRepository) GetSunTimings(latitude, longitude float64) (*SunTimings, error) {
-	url, urlInfo := s.buildUrl(latitude, longitude)
+	url := s.buildUrl(latitude, longitude)
 
 	response, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("unable to make request to %s: %w", url, err)
 	}
-
 	defer response.Body.Close()
 
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read response from %s: %w", urlInfo.Host, err)
-	}
-
 	result := sunriseSunsetResponse{}
-
-	if err := json.Unmarshal(body, &result); err != nil {
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal json response: %w", err)
 	}
 
@@ -410,7 +399,7 @@ func main() {
 		panic(err)
 	}
 
-	timezone, err := asecamRepo.GetTimezone()
+	cameraTimezone, err := asecamRepo.GetTimezone()
 	if err != nil {
 		fmt.Printf("Failed to get current timezone: %e", err)
 		panic(err)
@@ -422,8 +411,8 @@ func main() {
 		panic(err)
 	}
 
-	sunrise := sunTimings.Sunrise.In(timezone)
-	sunset := sunTimings.Sunset.In(timezone)
+	sunrise := sunTimings.Sunrise.In(cameraTimezone)
+	sunset := sunTimings.Sunset.In(cameraTimezone)
 	
 	fmt.Printf("New sunrise %s, in target TZ %s\n", sunTimings.Sunrise, sunrise)
 	fmt.Printf("New sunrise %s, in target TZ %s\n", sunTimings.Sunset, sunset)
