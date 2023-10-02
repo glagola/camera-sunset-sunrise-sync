@@ -19,7 +19,7 @@ func main() {
 
 	validator := validator.New(validator.WithRequiredStructEnabled())
 
-	asecamRepo := asecam.NewRepository(
+	cameraRepo := asecam.NewRepository(
 		validator,
 		config.Host,
 		config.User,
@@ -28,7 +28,7 @@ func main() {
 
 	sunRepo := sun.NewRepository(validator)
 
-	sunTimings, err := sunRepo.GetSunTimings(
+	sunTimings, err := sunRepo.GetTimings(
 		config.Location.Latitude,
 		config.Location.Longitude,
 	)
@@ -37,13 +37,13 @@ func main() {
 		panic(err)
 	}
 
-	cameraTimezone, err := asecamRepo.GetTimezone()
+	cameraTimezone, err := cameraRepo.GetTimezone()
 	if err != nil {
 		fmt.Printf("Failed to get current timezone: %e", err)
 		panic(err)
 	}
 
-	imageSettings, err := asecamRepo.GetImageSettings()
+	imageSettings, err := cameraRepo.GetImageSettings()
 	if err != nil {
 		fmt.Printf("Failed to get asecam image settings: %e", err)
 		panic(err)
@@ -58,7 +58,7 @@ func main() {
 	imageSettings.DayBegin.Set(sunrise)
 	imageSettings.DayEnd.Set(sunset)
 
-	if err := asecamRepo.SetImageSettings(*imageSettings); err != nil {
+	if err := cameraRepo.SetImageSettings(*imageSettings); err != nil {
 		fmt.Printf("Failed to set updated image settings: %e", err)
 		panic(err)
 	}

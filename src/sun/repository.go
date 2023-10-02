@@ -10,7 +10,7 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-type SunRepository struct {
+type Repository struct {
 	validate *validator.Validate
 }
 
@@ -27,18 +27,13 @@ type SunTimings struct {
 	AstronomicalTwilightEnd   time.Time `json:"astronomical_twilight_end"`
 }
 
-type sunriseSunsetResponse struct {
-	Results *SunTimings `json:"results" validate:"required"`
-	Status  string      `json:"status"`
-}
-
-func NewRepository(validate *validator.Validate) SunRepository {
-	return SunRepository{
+func NewRepository(validate *validator.Validate) Repository {
+	return Repository{
 		validate: validate,
 	}
 }
 
-func (s SunRepository) buildUrl(latitude, longitude float32) string {
+func (s Repository) buildUrl(latitude, longitude float32) string {
 	values := url.Values{}
 
 	values.Add("lat", fmt.Sprintf("%f", latitude))
@@ -53,7 +48,7 @@ func (s SunRepository) buildUrl(latitude, longitude float32) string {
 	}).String()
 }
 
-func (s SunRepository) GetSunTimings(latitude, longitude float32) (*SunTimings, error) {
+func (s Repository) GetTimings(latitude, longitude float32) (*SunTimings, error) {
 	url := s.buildUrl(latitude, longitude)
 
 	response, err := http.Get(url)
@@ -62,7 +57,11 @@ func (s SunRepository) GetSunTimings(latitude, longitude float32) (*SunTimings, 
 	}
 	defer response.Body.Close()
 
-	result := sunriseSunsetResponse{}
+	var result struct {
+		Results *SunTimings `json:"results" validate:"required"`
+		Status  string      `json:"status"`
+	}
+
 	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal json response: %w", err)
 	}

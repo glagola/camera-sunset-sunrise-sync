@@ -13,16 +13,7 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-var timezoneOptionRegexp regexp.Regexp = *regexp.MustCompile(`(?im)<\s*option\s*value\s*=\s*"(\d+)"\s*>\s*(UTC([+-])(\d+):(\d+))\s*</\s*option\s*>`)
-
-type asecamTimezones map[int]*time.Location
-
-type asecamSystemTimeSettings struct {
-	Timezone int `json:"timezone"`
-	TimeSec  int `json:"time_sec"`
-}
-
-type AsecamRepository struct {
+type Repository struct {
 	validate       *validator.Validate
 	domain         string
 	user           string
@@ -36,7 +27,7 @@ type schedule struct {
 	Reserve int `json:"reserve"`
 }
 
-type AsecamImageSettings struct {
+type ImageSettings struct {
 	Brightness           int       `json:"brightness"`
 	Saturation           int       `json:"saturation"`
 	Contrast             int       `json:"contrast"`
@@ -72,8 +63,8 @@ func (s *schedule) Set(new time.Time) {
 	s.Minute = new.Minute()
 }
 
-func NewRepository(validate *validator.Validate, domain, user, hashedPassword string) *AsecamRepository {
-	return &AsecamRepository{
+func NewRepository(validate *validator.Validate, domain, user, hashedPassword string) *Repository {
+	return &Repository{
 		validate:       validate,
 		domain:         domain,
 		user:           user,
@@ -81,7 +72,7 @@ func NewRepository(validate *validator.Validate, domain, user, hashedPassword st
 	}
 }
 
-func (s *AsecamRepository) buildUrl(params map[string]string) string {
+func (s *Repository) buildUrl(params map[string]string) string {
 	query := url.Values{}
 	for k, v := range params {
 		query.Add(k, v)
@@ -100,7 +91,7 @@ func (s *AsecamRepository) buildUrl(params map[string]string) string {
 	return _url.String()
 }
 
-func (s *AsecamRepository) GetImageSettings() (*AsecamImageSettings, error) {
+func (s *Repository) GetImageSettings() (*ImageSettings, error) {
 	url := s.buildUrl(map[string]string{
 		"action": "get",
 		"cmd":    "image",
@@ -112,7 +103,7 @@ func (s *AsecamRepository) GetImageSettings() (*AsecamImageSettings, error) {
 	}
 	defer response.Body.Close()
 
-	result := AsecamImageSettings{}
+	result := ImageSettings{}
 	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("unable to response: %w", err)
 	}
@@ -151,7 +142,7 @@ func (s *AsecamRepository) GetImageSettings() (*AsecamImageSettings, error) {
 	return &result, nil
 }
 
-func (s *AsecamRepository) SetImageSettings(imageSettings AsecamImageSettings) error {
+func (s *Repository) SetImageSettings(imageSettings ImageSettings) error {
 
 	str, err := json.Marshal(imageSettings)
 	if err != nil {
@@ -186,8 +177,12 @@ func (s *AsecamRepository) SetImageSettings(imageSettings AsecamImageSettings) e
 	return nil
 }
 
-func (s *AsecamRepository) GetTimezones() (asecamTimezones, error) {
-	result := make(asecamTimezones, 34)
+type timezones map[int]*time.Location
+
+var timezoneOptionRegexp regexp.Regexp = *regexp.MustCompile(`(?im)<\s*option\s*value\s*=\s*"(\d+)"\s*>\s*(UTC([+-])(\d+):(\d+))\s*</\s*option\s*>`)
+
+func (s *Repository) GetTimezones() (timezones, error) {
+	result := make(timezones, 34)
 
 	url := (&url.URL{
 		Scheme: "http",
@@ -233,7 +228,7 @@ func (s *AsecamRepository) GetTimezones() (asecamTimezones, error) {
 	return result, nil
 }
 
-func (s *AsecamRepository) GetTimezone() (*time.Location, error) {
+func (s *Repository) GetTimezone() (*time.Location, error) {
 	timezoneById, err := s.GetTimezones()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get timezones list: %w", err)
@@ -252,7 +247,7 @@ func (s *AsecamRepository) GetTimezone() (*time.Location, error) {
 	return timezone, nil
 }
 
-func (s *AsecamRepository) getTimezoneId() (int, error) {
+func (s *Repository) getTimezoneId() (int, error) {
 	url := s.buildUrl(map[string]string{
 		"action": "get",
 		"cmd":    "systime",
@@ -264,7 +259,11 @@ func (s *AsecamRepository) getTimezoneId() (int, error) {
 	}
 	defer response.Body.Close()
 
-	var systemTimeSettings *asecamSystemTimeSettings
+	var systemTimeSettings *struct {
+		Timezone int `json:"timezone"`
+		TimeSec  int `json:"time_sec"`
+	}
+
 	if err := json.NewDecoder(response.Body).Decode(&systemTimeSettings); err != nil {
 		return 0, fmt.Errorf("unable to parse response with system time settings: %w", err)
 	}
