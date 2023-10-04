@@ -4,7 +4,9 @@ import (
 	"asecam/src/asecam"
 	"asecam/src/sun"
 	"log/slog"
+	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 )
@@ -19,14 +21,19 @@ func main() {
 
 	validator := validator.New(validator.WithRequiredStructEnabled())
 
+	httpClient := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
 	camera := asecam.New(
 		validator,
+		httpClient,
 		config.Host,
 		config.User,
 		config.HashedPassword,
 	)
 
-	sun := sun.New(validator)
+	sun := sun.New(validator, httpClient)
 
 	sunTimings, err := sun.GetTimings(
 		config.Location.Latitude,

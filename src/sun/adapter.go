@@ -12,6 +12,7 @@ import (
 
 type Adapter struct {
 	validate *validator.Validate
+	client   *http.Client
 }
 
 type SunTimings struct {
@@ -27,9 +28,10 @@ type SunTimings struct {
 	AstronomicalTwilightEnd   time.Time `json:"astronomical_twilight_end"`
 }
 
-func New(validate *validator.Validate) Adapter {
+func New(validate *validator.Validate, client *http.Client) Adapter {
 	return Adapter{
 		validate: validate,
+		client:   client,
 	}
 }
 
@@ -51,7 +53,7 @@ func (s Adapter) buildUrl(latitude, longitude float32) string {
 func (s Adapter) GetTimings(latitude, longitude float32) (*SunTimings, error) {
 	url := s.buildUrl(latitude, longitude)
 
-	response, err := http.Get(url)
+	response, err := s.client.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("unable to make request to %s: %w", url, err)
 	}

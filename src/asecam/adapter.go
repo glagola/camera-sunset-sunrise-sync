@@ -16,6 +16,7 @@ import (
 
 type Adapter struct {
 	validate       *validator.Validate
+	client         *http.Client
 	domain         string
 	user           string
 	hashedPassword string
@@ -64,9 +65,10 @@ func (s *schedule) Set(new time.Time) {
 	s.Minute = new.Minute()
 }
 
-func New(validate *validator.Validate, domain, user, hashedPassword string) *Adapter {
+func New(validate *validator.Validate, client *http.Client, domain, user, hashedPassword string) *Adapter {
 	return &Adapter{
 		validate:       validate,
+		client:         client,
 		domain:         domain,
 		user:           user,
 		hashedPassword: hashedPassword,
@@ -98,7 +100,7 @@ func (s *Adapter) getImageSettings() (*imageSettings, error) {
 		"cmd":    "image",
 	})
 
-	response, err := http.Get(url)
+	response, err := s.client.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get image settings: %w", err)
 	}
@@ -156,7 +158,7 @@ func (s *Adapter) setImageSettings(imageSettings imageSettings) error {
 		"param":  string(str),
 	})
 
-	response, err := http.Get(url)
+	response, err := s.client.Get(url)
 	if err != nil {
 		return fmt.Errorf("unable to set image settings: %w", err)
 	}
@@ -191,7 +193,7 @@ func (s *Adapter) getTimezones() (timezones, error) {
 		Path:   "/view/time_setting.html",
 	}).String()
 
-	response, err := http.Get(url)
+	response, err := s.client.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("unable to make request to %s: %w", url, err)
 	}
@@ -254,7 +256,7 @@ func (s *Adapter) getTimezoneId() (int, error) {
 		"cmd":    "systime",
 	})
 
-	response, err := http.Get(url)
+	response, err := s.client.Get(url)
 	if err != nil {
 		return 0, fmt.Errorf("failed to make GET request to %s: %w", url, err)
 	}
