@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -27,7 +28,7 @@ type schedule struct {
 	Reserve int `json:"reserve"`
 }
 
-type ImageSettings struct {
+type imageSettings struct {
 	Brightness           int       `json:"brightness"`
 	Saturation           int       `json:"saturation"`
 	Contrast             int       `json:"contrast"`
@@ -63,7 +64,7 @@ func (s *schedule) Set(new time.Time) {
 	s.Minute = new.Minute()
 }
 
-func NewRepository(validate *validator.Validate, domain, user, hashedPassword string) *Repository {
+func NewAdapter(validate *validator.Validate, domain, user, hashedPassword string) *Repository {
 	return &Repository{
 		validate:       validate,
 		domain:         domain,
@@ -91,7 +92,7 @@ func (s *Repository) buildUrl(params map[string]string) string {
 	return _url.String()
 }
 
-func (s *Repository) GetImageSettings() (*ImageSettings, error) {
+func (s *Repository) getImageSettings() (*imageSettings, error) {
 	url := s.buildUrl(map[string]string{
 		"action": "get",
 		"cmd":    "image",
@@ -103,7 +104,7 @@ func (s *Repository) GetImageSettings() (*ImageSettings, error) {
 	}
 	defer response.Body.Close()
 
-	result := ImageSettings{}
+	result := imageSettings{}
 	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("unable to response: %w", err)
 	}
@@ -142,7 +143,7 @@ func (s *Repository) GetImageSettings() (*ImageSettings, error) {
 	return &result, nil
 }
 
-func (s *Repository) SetImageSettings(imageSettings ImageSettings) error {
+func (s *Repository) setImageSettings(imageSettings imageSettings) error {
 
 	str, err := json.Marshal(imageSettings)
 	if err != nil {
@@ -181,7 +182,7 @@ type timezones map[int]*time.Location
 
 var timezoneOptionRegexp regexp.Regexp = *regexp.MustCompile(`(?im)<\s*option\s*value\s*=\s*"(\d+)"\s*>\s*(UTC([+-])(\d+):(\d+))\s*</\s*option\s*>`)
 
-func (s *Repository) GetTimezones() (timezones, error) {
+func (s *Repository) getTimezones() (timezones, error) {
 	result := make(timezones, 34)
 
 	url := (&url.URL{
@@ -228,8 +229,8 @@ func (s *Repository) GetTimezones() (timezones, error) {
 	return result, nil
 }
 
-func (s *Repository) GetTimezone() (*time.Location, error) {
-	timezoneById, err := s.GetTimezones()
+func (s *Repository) getTimezone() (*time.Location, error) {
+	timezoneById, err := s.getTimezones()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get timezones list: %w", err)
 	}
@@ -255,7 +256,7 @@ func (s *Repository) getTimezoneId() (int, error) {
 
 	response, err := http.Get(url)
 	if err != nil {
-		return 0, fmt.Errorf("unable to get system time settings: %w", err)
+		return 0, fmt.Errorf("failed to make GET request to %s: %w", url, err)
 	}
 	defer response.Body.Close()
 
@@ -265,12 +266,36 @@ func (s *Repository) getTimezoneId() (int, error) {
 	}
 
 	if err := json.NewDecoder(response.Body).Decode(&systemTimeSettings); err != nil {
-		return 0, fmt.Errorf("unable to parse response with system time settings: %w", err)
+		return 0, fmt.Errorf("unable to parse response: %w", err)
 	}
 
 	if systemTimeSettings == nil {
-		return 0, fmt.Errorf("invalid response with system time settings")
+		return 0, fmt.Errorf("invalid response")
 	}
 
 	return systemTimeSettings.Timezone, nil
+}
+
+func (s *Repository) UpdateSunTimings(logger *slog.Logger, sunrise, sunset time.Time) error {
+	cameraTimezone, err := s.getTimezone()
+	if err != nil {
+		logger.Error("Failed to get current camera timezone", slog.Any("error", err))
+		return fmt.Errorf("failed to get current timezone: %w", err)
+	}
+
+	imageSettings, err := s.getImageSettings()
+	if err != nil {
+		logger.Error("Failed to get asecam image settings", slog.Any("error", err))
+		return fmt.Errorf("failed to get asecam image settings: %w", err)
+	}
+
+	imageSettings.DayBegin.Set(sunrise.In(cameraTimezone))
+	imageSettings.DayEnd.Set(sunset.In(cameraTimezone))
+
+	if err := s.setImageSettings(*imageSettings); err != nil {
+		logger.Error("Failed to set updated image settings", slog.Any("error", err))
+		return fmt.Errorf("failed to set updated image settings: %w", err)
+	}
+
+	return nil
 }
