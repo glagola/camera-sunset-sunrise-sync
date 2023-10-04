@@ -27,7 +27,7 @@ type SunTimings struct {
 	AstronomicalTwilightEnd   time.Time `json:"astronomical_twilight_end"`
 }
 
-func NewRepository(validate *validator.Validate) Repository {
+func New(validate *validator.Validate) Repository {
 	return Repository{
 		validate: validate,
 	}

@@ -64,7 +64,7 @@ func (s *schedule) Set(new time.Time) {
 	s.Minute = new.Minute()
 }
 
-func NewAdapter(validate *validator.Validate, domain, user, hashedPassword string) *Repository {
+func New(validate *validator.Validate, domain, user, hashedPassword string) *Repository {
 	return &Repository{
 		validate:       validate,
 		domain:         domain,
@@ -276,7 +276,7 @@ func (s *Repository) getTimezoneId() (int, error) {
 	return systemTimeSettings.Timezone, nil
 }
 
-func (s *Repository) UpdateSunTimings(logger *slog.Logger, sunrise, sunset time.Time) error {
+func (s *Repository) UpdateDayTimings(logger *slog.Logger, sunrise, sunset time.Time) error {
 	cameraTimezone, err := s.getTimezone()
 	if err != nil {
 		logger.Error("Failed to get current camera timezone", slog.Any("error", err))

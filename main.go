@@ -18,16 +18,16 @@ func main() {
 
 	validator := validator.New(validator.WithRequiredStructEnabled())
 
-	camera := asecam.NewAdapter(
+	camera := asecam.New(
 		validator,
 		config.Host,
 		config.User,
 		config.HashedPassword,
 	)
 
-	sunRepo := sun.NewRepository(validator)
+	sun := sun.New(validator)
 
-	sunTimings, err := sunRepo.GetTimings(
+	sunTimings, err := sun.GetTimings(
 		config.Location.Latitude,
 		config.Location.Longitude,
 	)
@@ -35,7 +35,7 @@ func main() {
 		panic(err)
 	}
 
-	if err := camera.UpdateSunTimings(logger, sunTimings.Sunrise, sunTimings.Sunset); err != nil {
+	if err := camera.UpdateDayTimings(logger, sunTimings.Sunrise, sunTimings.Sunset); err != nil {
 		panic(err)
 	}
 }
