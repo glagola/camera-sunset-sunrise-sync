@@ -14,7 +14,7 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-type Repository struct {
+type Adapter struct {
 	validate       *validator.Validate
 	domain         string
 	user           string
@@ -64,8 +64,8 @@ func (s *schedule) Set(new time.Time) {
 	s.Minute = new.Minute()
 }
 
-func New(validate *validator.Validate, domain, user, hashedPassword string) *Repository {
-	return &Repository{
+func New(validate *validator.Validate, domain, user, hashedPassword string) *Adapter {
+	return &Adapter{
 		validate:       validate,
 		domain:         domain,
 		user:           user,
@@ -73,7 +73,7 @@ func New(validate *validator.Validate, domain, user, hashedPassword string) *Rep
 	}
 }
 
-func (s *Repository) buildUrl(params map[string]string) string {
+func (s *Adapter) buildUrl(params map[string]string) string {
 	query := url.Values{}
 	for k, v := range params {
 		query.Add(k, v)
@@ -92,7 +92,7 @@ func (s *Repository) buildUrl(params map[string]string) string {
 	return _url.String()
 }
 
-func (s *Repository) getImageSettings() (*imageSettings, error) {
+func (s *Adapter) getImageSettings() (*imageSettings, error) {
 	url := s.buildUrl(map[string]string{
 		"action": "get",
 		"cmd":    "image",
@@ -143,7 +143,7 @@ func (s *Repository) getImageSettings() (*imageSettings, error) {
 	return &result, nil
 }
 
-func (s *Repository) setImageSettings(imageSettings imageSettings) error {
+func (s *Adapter) setImageSettings(imageSettings imageSettings) error {
 
 	str, err := json.Marshal(imageSettings)
 	if err != nil {
@@ -182,7 +182,7 @@ type timezones map[int]*time.Location
 
 var timezoneOptionRegexp regexp.Regexp = *regexp.MustCompile(`(?im)<\s*option\s*value\s*=\s*"(\d+)"\s*>\s*(UTC([+-])(\d+):(\d+))\s*</\s*option\s*>`)
 
-func (s *Repository) getTimezones() (timezones, error) {
+func (s *Adapter) getTimezones() (timezones, error) {
 	result := make(timezones, 34)
 
 	url := (&url.URL{
@@ -229,7 +229,7 @@ func (s *Repository) getTimezones() (timezones, error) {
 	return result, nil
 }
 
-func (s *Repository) getTimezone() (*time.Location, error) {
+func (s *Adapter) getTimezone() (*time.Location, error) {
 	timezoneById, err := s.getTimezones()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get timezones list: %w", err)
@@ -248,7 +248,7 @@ func (s *Repository) getTimezone() (*time.Location, error) {
 	return timezone, nil
 }
 
-func (s *Repository) getTimezoneId() (int, error) {
+func (s *Adapter) getTimezoneId() (int, error) {
 	url := s.buildUrl(map[string]string{
 		"action": "get",
 		"cmd":    "systime",
@@ -276,25 +276,27 @@ func (s *Repository) getTimezoneId() (int, error) {
 	return systemTimeSettings.Timezone, nil
 }
 
-func (s *Repository) UpdateDayTimings(logger *slog.Logger, sunrise, sunset time.Time) error {
-	cameraTimezone, err := s.getTimezone()
+func (s *Adapter) UpdateDayTimings(logger *slog.Logger, sunrise, sunset time.Time) error {
+	logger.Debug("adapter::UpdateDayTimings", slog.Any("sunrise", sunrise), slog.Any("sunset", sunset))
+
+	timezone, err := s.getTimezone()
 	if err != nil {
-		logger.Error("Failed to get current camera timezone", slog.Any("error", err))
-		return fmt.Errorf("failed to get current timezone: %w", err)
+		logger.Error("Failed to get camera's timezone", slog.Any("error", err))
+		return fmt.Errorf("failed to get camera's timezone: %w", err)
 	}
 
 	imageSettings, err := s.getImageSettings()
 	if err != nil {
-		logger.Error("Failed to get asecam image settings", slog.Any("error", err))
-		return fmt.Errorf("failed to get asecam image settings: %w", err)
+		logger.Error("Failed to get camera's image settings", slog.Any("error", err))
+		return fmt.Errorf("failed to get camera's image settings: %w", err)
 	}
 
-	imageSettings.DayBegin.Set(sunrise.In(cameraTimezone))
-	imageSettings.DayEnd.Set(sunset.In(cameraTimezone))
+	imageSettings.DayBegin.Set(sunrise.In(timezone))
+	imageSettings.DayEnd.Set(sunset.In(timezone))
 
 	if err := s.setImageSettings(*imageSettings); err != nil {
-		logger.Error("Failed to set updated image settings", slog.Any("error", err))
-		return fmt.Errorf("failed to set updated image settings: %w", err)
+		logger.Error("Failed to update camera's image settings", slog.Any("error", err))
+		return fmt.Errorf("failed to update camera's image settings: %w", err)
 	}
 
 	return nil

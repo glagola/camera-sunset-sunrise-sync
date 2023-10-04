@@ -10,7 +10,7 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-type Repository struct {
+type Adapter struct {
 	validate *validator.Validate
 }
 
@@ -27,13 +27,13 @@ type SunTimings struct {
 	AstronomicalTwilightEnd   time.Time `json:"astronomical_twilight_end"`
 }
 
-func New(validate *validator.Validate) Repository {
-	return Repository{
+func New(validate *validator.Validate) Adapter {
+	return Adapter{
 		validate: validate,
 	}
 }
 
-func (s Repository) buildUrl(latitude, longitude float32) string {
+func (s Adapter) buildUrl(latitude, longitude float32) string {
 	values := url.Values{}
 
 	values.Add("lat", fmt.Sprintf("%f", latitude))
@@ -48,7 +48,7 @@ func (s Repository) buildUrl(latitude, longitude float32) string {
 	}).String()
 }
 
-func (s Repository) GetTimings(latitude, longitude float32) (*SunTimings, error) {
+func (s Adapter) GetTimings(latitude, longitude float32) (*SunTimings, error) {
 	url := s.buildUrl(latitude, longitude)
 
 	response, err := http.Get(url)
