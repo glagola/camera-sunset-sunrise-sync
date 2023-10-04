@@ -13,6 +13,7 @@ func main() {
 	logger := slog.New(
 		slog.NewTextHandler(os.Stderr, nil),
 	)
+	slog.SetDefault(logger)
 
 	config := MustReadConfig(logger, ".env")
 
