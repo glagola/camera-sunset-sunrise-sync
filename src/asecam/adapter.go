@@ -10,12 +10,9 @@ import (
 	"regexp"
 	"strconv"
 	"time"
-
-	"github.com/go-playground/validator/v10"
 )
 
 type Adapter struct {
-	validate       *validator.Validate
 	client         *http.Client
 	domain         string
 	user           string
@@ -23,9 +20,9 @@ type Adapter struct {
 }
 
 type schedule struct {
-	Hour    int `json:"hour" validate:"gte=0,lt=24"`
-	Minute  int `json:"minute" validate:"gte=0,lt=60"`
-	Second  int `json:"second" validate:"gte=0,lt=60"`
+	Hour    int `json:"hour"`
+	Minute  int `json:"minute"`
+	Second  int `json:"second"`
 	Reserve int `json:"reserve"`
 }
 
@@ -35,9 +32,9 @@ type imageSettings struct {
 	Contrast             int       `json:"contrast"`
 	Sharpness            int       `json:"sharpness"`
 	Exposure             int       `json:"exposure"`
-	DayNightMode         int       `json:"day_night_mode" validate:"gte=0,lt=4"`
-	DayBegin             *schedule `json:"day_begin" validate:"required"`
-	DayEnd               *schedule `json:"day_end" validate:"required"`
+	DayNightMode         int       `json:"day_night_mode"`
+	DayBegin             *schedule `json:"day_begin"`
+	DayEnd               *schedule `json:"day_end"`
 	Mirror               int       `json:"mirror"`
 	Flip                 int       `json:"flip"`
 	WdrEnable            int       `json:"wdr_enable"`
@@ -65,9 +62,8 @@ func (s *schedule) Set(new time.Time) {
 	s.Minute = new.Minute()
 }
 
-func New(validate *validator.Validate, client *http.Client, domain, user, hashedPassword string) *Adapter {
+func New(client *http.Client, domain, user, hashedPassword string) *Adapter {
 	return &Adapter{
-		validate:       validate,
 		client:         client,
 		domain:         domain,
 		user:           user,
@@ -109,37 +105,6 @@ func (s *Adapter) getImageSettings() (*imageSettings, error) {
 	result := imageSettings{}
 	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("unable to response: %w", err)
-	}
-
-	err = s.validate.Struct(result)
-	if err != nil {
-
-		// this check is only needed when your code could produce
-		// an invalid value for validation such as interface with nil
-		// value most including myself do not usually have code like this.
-		if _, ok := err.(*validator.InvalidValidationError); ok {
-			fmt.Println(err)
-			return nil, err
-		}
-
-		for _, err := range err.(validator.ValidationErrors) {
-
-			fmt.Println(err.Namespace())
-			fmt.Println(err.Field())
-			fmt.Println(err.StructNamespace())
-			fmt.Println(err.StructField())
-			fmt.Println(err.Tag())
-			fmt.Println(err.ActualTag())
-			fmt.Println(err.Kind())
-			fmt.Println(err.Type())
-			fmt.Println(err.Value())
-			fmt.Println(err.Param())
-
-			fmt.Println()
-		}
-
-		// from here you can create your own error messages in whatever language you wish
-		return nil, err
 	}
 
 	return &result, nil

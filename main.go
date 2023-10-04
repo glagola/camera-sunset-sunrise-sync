@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"os"
 	"time"
-
-	"github.com/go-playground/validator/v10"
 )
 
 func main() {
@@ -19,21 +17,18 @@ func main() {
 
 	config := MustReadConfig(logger, ".env")
 
-	validator := validator.New(validator.WithRequiredStructEnabled())
-
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
 	}
 
 	camera := asecam.New(
-		validator,
 		httpClient,
 		config.Host,
 		config.User,
 		config.HashedPassword,
 	)
 
-	sun := sun.New(validator, httpClient)
+	sun := sun.New(httpClient)
 
 	sunTimings, err := sun.GetTimings(
 		config.Location.Latitude,

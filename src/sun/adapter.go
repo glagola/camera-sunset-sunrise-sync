@@ -6,32 +6,20 @@ import (
 	"net/http"
 	"net/url"
 	"time"
-
-	"github.com/go-playground/validator/v10"
 )
 
 type Adapter struct {
-	validate *validator.Validate
-	client   *http.Client
+	client *http.Client
 }
 
 type SunTimings struct {
-	Sunrise                   time.Time `json:"sunrise"`
-	Sunset                    time.Time `json:"sunset"`
-	SolarNoon                 time.Time `json:"solar_noon"`
-	DayLength                 int       `json:"day_length"`
-	CivilTwilightBegin        time.Time `json:"civil_twilight_begin"`
-	CivilTwilightEnd          time.Time `json:"civil_twilight_end"`
-	NauticalTwilightBegin     time.Time `json:"nautical_twilight_begin"`
-	NauticalTwilightEnd       time.Time `json:"nautical_twilight_end"`
-	AstronomicalTwilightBegin time.Time `json:"astronomical_twilight_begin"`
-	AstronomicalTwilightEnd   time.Time `json:"astronomical_twilight_end"`
+	Sunrise time.Time `json:"sunrise"`
+	Sunset  time.Time `json:"sunset"`
 }
 
-func New(validate *validator.Validate, client *http.Client) Adapter {
+func New(client *http.Client) Adapter {
 	return Adapter{
-		validate: validate,
-		client:   client,
+		client: client,
 	}
 }
 
@@ -60,7 +48,7 @@ func (s Adapter) GetTimings(latitude, longitude float32) (*SunTimings, error) {
 	defer response.Body.Close()
 
 	var result struct {
-		Results *SunTimings `json:"results" validate:"required"`
+		Results *SunTimings `json:"results"`
 		Status  string      `json:"status"`
 	}
 
@@ -68,34 +56,8 @@ func (s Adapter) GetTimings(latitude, longitude float32) (*SunTimings, error) {
 		return nil, fmt.Errorf("unable to unmarshal json response: %w", err)
 	}
 
-	err = s.validate.Struct(result)
-	if err != nil {
-
-		// this check is only needed when your code could produce
-		// an invalid value for validation such as interface with nil
-		// value most including myself do not usually have code like this.
-		if _, ok := err.(*validator.InvalidValidationError); ok {
-			fmt.Println(err)
-			return nil, err
-		}
-
-		for _, err := range err.(validator.ValidationErrors) {
-
-			fmt.Println(err.Namespace())
-			fmt.Println(err.Field())
-			fmt.Println(err.StructNamespace())
-			fmt.Println(err.StructField())
-			fmt.Println(err.Tag())
-			fmt.Println(err.ActualTag())
-			fmt.Println(err.Kind())
-			fmt.Println(err.Type())
-			fmt.Println(err.Value())
-			fmt.Println(err.Param())
-
-			fmt.Println()
-		}
-
-		return nil, err
+	if result.Results == nil {
+		return nil, fmt.Errorf("no data in response")
 	}
 
 	return result.Results, nil
