@@ -4,18 +4,18 @@ import (
 	"asecam/src/asecam"
 	"asecam/src/sun"
 	"fmt"
+	"log/slog"
+	"os"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/ilyakaznacheev/cleanenv"
 )
 
 func main() {
-	var config Config
+	logger := slog.New(
+		slog.NewTextHandler(os.Stderr, nil),
+	)
 
-	if err := cleanenv.ReadConfig(".env", &config); err != nil {
-		fmt.Printf("Failed to load .env config: %e", err)
-		panic(err)
-	}
+	config := MustReadConfig(logger, ".env")
 
 	validator := validator.New(validator.WithRequiredStructEnabled())
 
