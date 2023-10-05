@@ -1,21 +1,18 @@
 package main
 
 import (
+	"asecam/config"
+	"asecam/logger"
 	"asecam/src/asecam"
 	"asecam/src/sun"
-	"log/slog"
 	"net/http"
-	"os"
 	"time"
 )
 
 func main() {
-	logger := slog.New(
-		slog.NewTextHandler(os.Stderr, nil),
-	)
-	slog.SetDefault(logger)
+	config := config.MustRead(".env")
 
-	config := MustReadConfig(logger, ".env")
+	logger := logger.SetupLogger(config.Env)
 
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
