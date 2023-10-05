@@ -3,6 +3,7 @@ package sun
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -10,6 +11,7 @@ import (
 
 type Adapter struct {
 	client *http.Client
+	logger *slog.Logger
 }
 
 type SunTimings struct {
@@ -17,9 +19,10 @@ type SunTimings struct {
 	Sunset  time.Time `json:"sunset"`
 }
 
-func New(client *http.Client) Adapter {
+func New(client *http.Client, logger *slog.Logger) Adapter {
 	return Adapter{
 		client: client,
+		logger: logger,
 	}
 }
 
@@ -39,10 +42,28 @@ func (s Adapter) buildUrl(latitude, longitude float32) string {
 }
 
 func (s Adapter) GetTimings(latitude, longitude float32) (*SunTimings, error) {
+	logger := s.logger.With(slog.String("method", "GetTimings"))
+	logger.Debug(
+		"Get sunrise and sunset for the location",
+		slog.Group("location", 
+			slog.Float64("latitude", float64(latitude)), 
+			slog.Float64("longitude", float64(longitude)),
+		),
+	)
+
 	url := s.buildUrl(latitude, longitude)
 
 	response, err := s.client.Get(url)
 	if err != nil {
+		logger.Error(
+			"Failed to get sun timings", 
+			slog.String("url", url), 
+			slog.Group(
+				"response",
+				slog.String("message", response.Status),
+				slog.Int("code", response.StatusCode),
+			),
+		)
 		return nil, fmt.Errorf("unable to make request to %s: %w", url, err)
 	}
 	defer response.Body.Close()
@@ -53,10 +74,12 @@ func (s Adapter) GetTimings(latitude, longitude float32) (*SunTimings, error) {
 	}
 
 	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		logger.Error("Failed to parse json")
 		return nil, fmt.Errorf("unable to unmarshal json response: %w", err)
 	}
 
 	if result.Results == nil {
+		logger.Error("Results are empty")
 		return nil, fmt.Errorf("no data in response")
 	}
 

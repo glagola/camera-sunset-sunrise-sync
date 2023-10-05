@@ -31,7 +31,14 @@ func SetupLogger(requestedEnv string) *slog.Logger {
 
 	logger := slog.New(handler)
 
-	logger.Info("Logger init environment", slog.String("loaded", env), slog.String("requested", requestedEnv))
+	logger.Info(
+		"Logger init", 
+		slog.Group(
+			"environment", 
+			slog.String("loaded", env), 
+			slog.String("requested", requestedEnv),
+		),
+	)
 
 	slog.SetDefault(logger)
 

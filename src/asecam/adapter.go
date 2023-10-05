@@ -14,6 +14,7 @@ import (
 
 type Adapter struct {
 	client         *http.Client
+	logger         *slog.Logger
 	domain         string
 	user           string
 	hashedPassword string
@@ -62,9 +63,10 @@ func (s *schedule) Set(new time.Time) {
 	s.Minute = new.Minute()
 }
 
-func New(client *http.Client, domain, user, hashedPassword string) *Adapter {
+func New(client *http.Client, logger *slog.Logger, domain, user, hashedPassword string) *Adapter {
 	return &Adapter{
 		client:         client,
+		logger:         logger,
 		domain:         domain,
 		user:           user,
 		hashedPassword: hashedPassword,
@@ -91,6 +93,10 @@ func (s *Adapter) buildUrl(params map[string]string) string {
 }
 
 func (s *Adapter) getImageSettings() (*imageSettings, error) {
+	logger := LoggerForMethod(s.logger, "getImageSettings")
+
+	logger.Debug("Get camera's image settings")
+
 	url := s.buildUrl(map[string]string{
 		"action": "get",
 		"cmd":    "image",
@@ -98,12 +104,14 @@ func (s *Adapter) getImageSettings() (*imageSettings, error) {
 
 	response, err := s.client.Get(url)
 	if err != nil {
+		LogHttpError(logger, "Failed to get image settings", url, response)
 		return nil, fmt.Errorf("unable to get image settings: %w", err)
 	}
 	defer response.Body.Close()
 
 	result := imageSettings{}
 	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		logger.Error("Failed to parse json")
 		return nil, fmt.Errorf("unable to response: %w", err)
 	}
 
@@ -111,6 +119,15 @@ func (s *Adapter) getImageSettings() (*imageSettings, error) {
 }
 
 func (s *Adapter) setImageSettings(imageSettings imageSettings) error {
+	logger := LoggerForMethod(s.logger, "setImageSettings")
+
+	logger.Debug(
+		"Set image settings",
+		slog.Group(
+			"params",
+			slog.Any("imageSettings", imageSettings),
+		),
+	)
 
 	str, err := json.Marshal(imageSettings)
 	if err != nil {
@@ -125,6 +142,7 @@ func (s *Adapter) setImageSettings(imageSettings imageSettings) error {
 
 	response, err := s.client.Get(url)
 	if err != nil {
+		LogHttpError(logger, "Failed to set image settings", url, response)
 		return fmt.Errorf("unable to set image settings: %w", err)
 	}
 	defer response.Body.Close()
@@ -135,10 +153,12 @@ func (s *Adapter) setImageSettings(imageSettings imageSettings) error {
 	}
 
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		logger.Error("Failed to parse json")
 		return fmt.Errorf("failed to set image settings: %w", err)
 	}
 
 	if body == nil || body.Status != "ok" {
+		logger.Error("Refused to change image settings")
 		return fmt.Errorf("failed to set image settings")
 	}
 
@@ -150,6 +170,10 @@ type timezones map[int]*time.Location
 var timezoneOptionRegexp regexp.Regexp = *regexp.MustCompile(`(?im)<\s*option\s*value\s*=\s*"(\d+)"\s*>\s*(UTC([+-])(\d+):(\d+))\s*</\s*option\s*>`)
 
 func (s *Adapter) getTimezones() (timezones, error) {
+	logger := LoggerForMethod(s.logger, "getTimezones")
+
+	logger.Debug("Get camera's timezones list")
+
 	result := make(timezones, 34)
 
 	url := (&url.URL{
@@ -160,14 +184,18 @@ func (s *Adapter) getTimezones() (timezones, error) {
 
 	response, err := s.client.Get(url)
 	if err != nil {
+		LogHttpError(logger, "Failed to get timezones", url, response)
 		return nil, fmt.Errorf("unable to make request to %s: %w", url, err)
 	}
 	defer response.Body.Close()
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
+		logger.Error("Failed to read response body")
 		return nil, fmt.Errorf("unable to read response from %s: %w", url, err)
 	}
+
+	logger.Debug("Html with timezones fetched", slog.Int("bytes", len(body)))
 
 	matches := timezoneOptionRegexp.FindAllStringSubmatch(string(body), -1)
 
@@ -179,14 +207,17 @@ func (s *Adapter) getTimezones() (timezones, error) {
 		}
 
 		if timezoneId, err = strconv.Atoi(match[1]); err != nil {
+			logger.Error("Unable to parse timezone id", slog.String("str", match[1]))
 			return nil, fmt.Errorf("unable to parse timezone id: %w", err)
 		}
 
 		if hour, err = strconv.Atoi(match[4]); err != nil {
+			logger.Error("Unable to parse timezone hour", slog.String("str", match[4]))
 			return nil, fmt.Errorf("unable to parse timezone hour: %w", err)
 		}
 
 		if minute, err = strconv.Atoi(match[5]); err != nil {
+			logger.Error("Unable to parse timezone minute", slog.String("str", match[5]))
 			return nil, fmt.Errorf("unable to parse timezone minute: %w", err)
 		}
 
@@ -197,6 +228,10 @@ func (s *Adapter) getTimezones() (timezones, error) {
 }
 
 func (s *Adapter) getTimezone() (*time.Location, error) {
+	logger := LoggerForMethod(s.logger, "getTimezone")
+
+	logger.Debug("Get camera's current timezone offset")
+
 	timezoneById, err := s.getTimezones()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get timezones list: %w", err)
@@ -209,6 +244,10 @@ func (s *Adapter) getTimezone() (*time.Location, error) {
 
 	timezone, exists := timezoneById[id]
 	if !exists {
+		logger.Error(
+			"The timezone is unknown",
+			slog.Int("id", id),
+		)
 		return nil, fmt.Errorf("failed to get timezone offset by id")
 	}
 
@@ -216,6 +255,10 @@ func (s *Adapter) getTimezone() (*time.Location, error) {
 }
 
 func (s *Adapter) getTimezoneId() (int, error) {
+	logger := LoggerForMethod(s.logger, "getTimezoneId")
+
+	logger.Debug("Get timezone id")
+
 	url := s.buildUrl(map[string]string{
 		"action": "get",
 		"cmd":    "systime",
@@ -223,6 +266,7 @@ func (s *Adapter) getTimezoneId() (int, error) {
 
 	response, err := s.client.Get(url)
 	if err != nil {
+		LogHttpError(logger, "Failed to get timezone Id", url, response)
 		return 0, fmt.Errorf("failed to make GET request to %s: %w", url, err)
 	}
 	defer response.Body.Close()
@@ -233,38 +277,66 @@ func (s *Adapter) getTimezoneId() (int, error) {
 	}
 
 	if err := json.NewDecoder(response.Body).Decode(&systemTimeSettings); err != nil {
+		logger.Error("Failed to parse json")
 		return 0, fmt.Errorf("unable to parse response: %w", err)
 	}
 
 	if systemTimeSettings == nil {
+		logger.Error("No timezone info in response")
 		return 0, fmt.Errorf("invalid response")
 	}
+
+	logger.Debug(
+		"Fetched timezone id", 
+		slog.Int("timezoneId", systemTimeSettings.Timezone),
+	)
 
 	return systemTimeSettings.Timezone, nil
 }
 
-func (s *Adapter) UpdateDayTimings(logger *slog.Logger, sunrise, sunset time.Time) error {
-	logger.Debug("adapter::UpdateDayTimings", slog.Any("sunrise", sunrise), slog.Any("sunset", sunset))
+func (s *Adapter) UpdateDayTimings(sunrise, sunset time.Time) error {
+	logger := LoggerForMethod(s.logger, "UpdateDayTimings")
+
+	logger.Debug(
+		"Update time of day light",
+		slog.Group(
+			"params",
+			slog.Any("sunrise", sunrise),
+			slog.Any("sunset", sunset),
+		),
+	)
 
 	timezone, err := s.getTimezone()
 	if err != nil {
-		logger.Error("Failed to get camera's timezone", slog.Any("error", err))
+		logger.Error("Failed to get camera's timezone")
 		return fmt.Errorf("failed to get camera's timezone: %w", err)
 	}
 
+	logger.Info("Camera's timezone fetched")
+	logger.Debug("Camera's timezone", slog.Any("timezone", timezone))
+
 	imageSettings, err := s.getImageSettings()
 	if err != nil {
-		logger.Error("Failed to get camera's image settings", slog.Any("error", err))
+		logger.Error("Failed to get camera's image settings")
 		return fmt.Errorf("failed to get camera's image settings: %w", err)
 	}
+
+	logger.Info("Camera's day light settings fetched")
+	logger.Debug(
+		"Camera's day light settings fetched", 
+		slog.Any("sunrise", scheduleLogRecord{ imageSettings.DayBegin, timezone }),
+		slog.Any("sunset", scheduleLogRecord{ imageSettings.DayEnd, timezone }),
+	)
 
 	imageSettings.DayBegin.Set(sunrise.In(timezone))
 	imageSettings.DayEnd.Set(sunset.In(timezone))
 
 	if err := s.setImageSettings(*imageSettings); err != nil {
-		logger.Error("Failed to update camera's image settings", slog.Any("error", err))
+		logger.Error("Failed to update camera's image settings")
 		return fmt.Errorf("failed to update camera's image settings: %w", err)
 	}
+
+	logger.Info("Camera's time of day light updated")
 
 	return nil
 }

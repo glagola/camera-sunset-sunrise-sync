@@ -5,6 +5,7 @@ import (
 	"asecam/logger"
 	"asecam/src/asecam"
 	"asecam/src/sun"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -20,12 +21,16 @@ func main() {
 
 	camera := asecam.New(
 		httpClient,
+		logger.With(slog.String("adapter", "asecam")),
 		config.Host,
 		config.User,
 		config.HashedPassword,
 	)
 
-	sun := sun.New(httpClient)
+	sun := sun.New(
+		httpClient, 
+		logger.With(slog.String("adapter", "api.sunrise-sunset.org")),
+	)
 
 	sunTimings, err := sun.GetTimings(
 		config.Location.Latitude,
@@ -35,7 +40,7 @@ func main() {
 		panic(err)
 	}
 
-	if err := camera.UpdateDayTimings(logger, sunTimings.Sunrise, sunTimings.Sunset); err != nil {
+	if err := camera.UpdateDayTimings(sunTimings.Sunrise, sunTimings.Sunset); err != nil {
 		panic(err)
 	}
 }
