@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/glagola/asecam-day-light-updater/internal/adapter/asecam"
-	sun "github.com/glagola/asecam-day-light-updater/internal/adapter/sunrise-sunset.org"
-	"github.com/glagola/asecam-day-light-updater/internal/config"
-	"github.com/glagola/asecam-day-light-updater/internal/logger"
+	"github.com/glagola/camera-sunset-sunrise-sync/internal/adapter/asecam"
+	sun "github.com/glagola/camera-sunset-sunrise-sync/internal/adapter/sunrise-sunset.org"
+	"github.com/glagola/camera-sunset-sunrise-sync/internal/config"
+	"github.com/glagola/camera-sunset-sunrise-sync/internal/logger"
 )
 
 func main() {

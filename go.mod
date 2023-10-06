@@ -1,4 +1,4 @@
-module github.com/glagola/asecam-day-light-updater
+module github.com/glagola/camera-sunset-sunrise-sync
 
 go 1.21.1
 

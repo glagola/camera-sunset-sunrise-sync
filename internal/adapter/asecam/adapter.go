@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/glagola/asecam-day-light-updater/internal/utils"
+	"github.com/glagola/camera-sunset-sunrise-sync/internal/utils"
 )
 
 type Adapter struct {
