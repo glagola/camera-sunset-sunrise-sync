@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strconv"
 	"time"
+
+	"github.com/glagola/asecam-day-light-updater/internal/utils"
 )
 
 type Adapter struct {
@@ -93,7 +95,7 @@ func (s *Adapter) buildUrl(params map[string]string) string {
 }
 
 func (s *Adapter) getImageSettings() (*imageSettings, error) {
-	logger := LoggerForMethod(s.logger, "getImageSettings")
+	logger := utils.LoggerForMethod(s.logger, "getImageSettings")
 
 	logger.Debug("Get camera's image settings")
 
@@ -104,7 +106,7 @@ func (s *Adapter) getImageSettings() (*imageSettings, error) {
 
 	response, err := s.client.Get(url)
 	if err != nil {
-		LogHttpError(logger, "Failed to get image settings", url, response)
+		utils.LogHttpError(logger, "Failed to get image settings", url, response)
 		return nil, fmt.Errorf("unable to get image settings: %w", err)
 	}
 	defer response.Body.Close()
@@ -119,7 +121,7 @@ func (s *Adapter) getImageSettings() (*imageSettings, error) {
 }
 
 func (s *Adapter) setImageSettings(imageSettings imageSettings) error {
-	logger := LoggerForMethod(s.logger, "setImageSettings")
+	logger := utils.LoggerForMethod(s.logger, "setImageSettings")
 
 	logger.Debug(
 		"Set image settings",
@@ -142,7 +144,7 @@ func (s *Adapter) setImageSettings(imageSettings imageSettings) error {
 
 	response, err := s.client.Get(url)
 	if err != nil {
-		LogHttpError(logger, "Failed to set image settings", url, response)
+		utils.LogHttpError(logger, "Failed to set image settings", url, response)
 		return fmt.Errorf("unable to set image settings: %w", err)
 	}
 	defer response.Body.Close()
@@ -170,7 +172,7 @@ type timezones map[int]*time.Location
 var timezoneOptionRegexp regexp.Regexp = *regexp.MustCompile(`(?im)<\s*option\s*value\s*=\s*"(\d+)"\s*>\s*(UTC([+-])(\d+):(\d+))\s*</\s*option\s*>`)
 
 func (s *Adapter) getTimezones() (timezones, error) {
-	logger := LoggerForMethod(s.logger, "getTimezones")
+	logger := utils.LoggerForMethod(s.logger, "getTimezones")
 
 	logger.Debug("Get camera's timezones list")
 
@@ -184,7 +186,7 @@ func (s *Adapter) getTimezones() (timezones, error) {
 
 	response, err := s.client.Get(url)
 	if err != nil {
-		LogHttpError(logger, "Failed to get timezones", url, response)
+		utils.LogHttpError(logger, "Failed to get timezones", url, response)
 		return nil, fmt.Errorf("unable to make request to %s: %w", url, err)
 	}
 	defer response.Body.Close()
@@ -228,7 +230,7 @@ func (s *Adapter) getTimezones() (timezones, error) {
 }
 
 func (s *Adapter) getTimezone() (*time.Location, error) {
-	logger := LoggerForMethod(s.logger, "getTimezone")
+	logger := utils.LoggerForMethod(s.logger, "getTimezone")
 
 	logger.Debug("Get camera's current timezone offset")
 
@@ -255,7 +257,7 @@ func (s *Adapter) getTimezone() (*time.Location, error) {
 }
 
 func (s *Adapter) getTimezoneId() (int, error) {
-	logger := LoggerForMethod(s.logger, "getTimezoneId")
+	logger := utils.LoggerForMethod(s.logger, "getTimezoneId")
 
 	logger.Debug("Get timezone id")
 
@@ -266,7 +268,7 @@ func (s *Adapter) getTimezoneId() (int, error) {
 
 	response, err := s.client.Get(url)
 	if err != nil {
-		LogHttpError(logger, "Failed to get timezone Id", url, response)
+		utils.LogHttpError(logger, "Failed to get timezone Id", url, response)
 		return 0, fmt.Errorf("failed to make GET request to %s: %w", url, err)
 	}
 	defer response.Body.Close()
@@ -295,7 +297,7 @@ func (s *Adapter) getTimezoneId() (int, error) {
 }
 
 func (s *Adapter) UpdateDayTimings(sunrise, sunset time.Time) error {
-	logger := LoggerForMethod(s.logger, "UpdateDayTimings")
+	logger := utils.LoggerForMethod(s.logger, "UpdateDayTimings")
 
 	logger.Debug(
 		"Update time of day light",

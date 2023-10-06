@@ -1,13 +1,14 @@
 package main
 
 import (
-	"asecam/config"
-	"asecam/logger"
-	"asecam/src/asecam"
-	"asecam/src/sun"
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/glagola/asecam-day-light-updater/internal/adapter/asecam"
+	sun "github.com/glagola/asecam-day-light-updater/internal/adapter/sunrise-sunset.org"
+	"github.com/glagola/asecam-day-light-updater/internal/config"
+	"github.com/glagola/asecam-day-light-updater/internal/logger"
 )
 
 func main() {

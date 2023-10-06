@@ -1,4 +1,4 @@
-module asecam
+module github.com/glagola/asecam-day-light-updater
 
 go 1.21.1
 

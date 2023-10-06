@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/glagola/asecam-day-light-updater/internal/utils"
 )
 
 type Adapter struct {
@@ -55,15 +57,7 @@ func (s Adapter) GetTimings(latitude, longitude float32) (*SunTimings, error) {
 
 	response, err := s.client.Get(url)
 	if err != nil {
-		logger.Error(
-			"Failed to get sun timings", 
-			slog.String("url", url), 
-			slog.Group(
-				"response",
-				slog.String("message", response.Status),
-				slog.Int("code", response.StatusCode),
-			),
-		)
+		utils.LogHttpError(logger, "Failed to get sun timings", url, response)
 		return nil, fmt.Errorf("unable to make request to %s: %w", url, err)
 	}
 	defer response.Body.Close()
