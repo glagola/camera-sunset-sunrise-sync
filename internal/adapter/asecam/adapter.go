@@ -94,7 +94,7 @@ func New(client *http.Client, logger *slog.Logger, baseUrl, user, hashedPassword
 	}, nil
 }
 
-func (s *Adapter) buildUrl(params map[string]string) string {
+func (s Adapter) buildUrl(params map[string]string) string {
 	query := url.Values{}
 	for k, v := range params {
 		query.Add(k, v)
@@ -113,7 +113,7 @@ func (s *Adapter) buildUrl(params map[string]string) string {
 	return _url.String()
 }
 
-func (s *Adapter) getImageSettings() (*imageSettings, error) {
+func (s Adapter) getImageSettings() (*imageSettings, error) {
 	logger := utils.LoggerForMethod(s.logger, "getImageSettings")
 
 	logger.Debug("Get camera's image settings")
@@ -139,7 +139,7 @@ func (s *Adapter) getImageSettings() (*imageSettings, error) {
 	return &result, nil
 }
 
-func (s *Adapter) setImageSettings(imageSettings imageSettings) error {
+func (s Adapter) setImageSettings(imageSettings imageSettings) error {
 	logger := utils.LoggerForMethod(s.logger, "setImageSettings")
 
 	logger.Debug(
@@ -190,7 +190,7 @@ type timezones map[int]*time.Location
 
 var timezoneOptionRegexp regexp.Regexp = *regexp.MustCompile(`(?im)<\s*option\s*value\s*=\s*"(\d+)"\s*>\s*(UTC([+-])(\d+):(\d+))\s*</\s*option\s*>`)
 
-func (s *Adapter) getTimezones() (timezones, error) {
+func (s Adapter) getTimezones() (timezones, error) {
 	logger := utils.LoggerForMethod(s.logger, "getTimezones")
 
 	logger.Debug("Get camera's timezones list")
@@ -248,7 +248,7 @@ func (s *Adapter) getTimezones() (timezones, error) {
 	return result, nil
 }
 
-func (s *Adapter) getTimezone() (*time.Location, error) {
+func (s Adapter) getTimezone() (*time.Location, error) {
 	logger := utils.LoggerForMethod(s.logger, "getTimezone")
 
 	logger.Debug("Get camera's current timezone offset")
@@ -275,7 +275,7 @@ func (s *Adapter) getTimezone() (*time.Location, error) {
 	return timezone, nil
 }
 
-func (s *Adapter) getTimezoneId() (int, error) {
+func (s Adapter) getTimezoneId() (int, error) {
 	logger := utils.LoggerForMethod(s.logger, "getTimezoneId")
 
 	logger.Debug("Get timezone id")
@@ -315,7 +315,7 @@ func (s *Adapter) getTimezoneId() (int, error) {
 	return systemTimeSettings.Timezone, nil
 }
 
-func (s *Adapter) UpdateDayTimings(sunrise, sunset time.Time) error {
+func (s Adapter) UpdateDayTimings(sunrise, sunset time.Time) error {
 	logger := utils.LoggerForMethod(s.logger, "UpdateDayTimings")
 
 	logger.Debug(

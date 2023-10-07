@@ -47,8 +47,8 @@ func (s Adapter) GetTimings(latitude, longitude float32) (*SunTimings, error) {
 	logger := s.logger.With(slog.String("method", "GetTimings"))
 	logger.Debug(
 		"Get sunrise and sunset for the location",
-		slog.Group("location", 
-			slog.Float64("latitude", float64(latitude)), 
+		slog.Group("location",
+			slog.Float64("latitude", float64(latitude)),
 			slog.Float64("longitude", float64(longitude)),
 		),
 	)
