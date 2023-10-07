@@ -1,9 +1,10 @@
 package config
 
 import (
-	"log"
+	"log/slog"
 	"os"
 
+	"github.com/glagola/camera-sunset-sunrise-sync/internal/utils"
 	"github.com/ilyakaznacheev/cleanenv"
 )
 
@@ -19,15 +20,17 @@ type Config struct {
 	}
 }
 
-func MustRead(pathToFile string) *Config {
-	logger := log.New(os.Stderr, "", log.LstdFlags)
+func MustRead(logger *slog.Logger, pathToFile string) *Config {
+	logger = utils.LoggerForMethod(logger, "MustRead")
+
 	cfg := Config{}
 
 	if err := cleanenv.ReadConfig(pathToFile, &cfg); err != nil {
-		logger.Printf(`Failed to load config "%s" file, error "%s"`, pathToFile, err.Error())
+		logger.Error("Failed to load config from file", slog.String("file", pathToFile), slog.Any("error", err.Error()))
 		
 		if err := cleanenv.ReadEnv(&cfg); err != nil {
-			logger.Fatalf(`Failed to read environment variables error "%s"`, err.Error())
+			logger.Error("Failed to load config from environment variables", slog.Any("error", err.Error()))
+			os.Exit(1)
 		}
 	}
 

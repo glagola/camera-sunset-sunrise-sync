@@ -8,13 +8,14 @@ import (
 	"github.com/glagola/camera-sunset-sunrise-sync/internal/adapter/asecam"
 	sun "github.com/glagola/camera-sunset-sunrise-sync/internal/adapter/sunrise-sunset.org"
 	"github.com/glagola/camera-sunset-sunrise-sync/internal/config"
-	"github.com/glagola/camera-sunset-sunrise-sync/internal/logger"
+	myLogger "github.com/glagola/camera-sunset-sunrise-sync/internal/logger"
 )
 
 func main() {
-	config := config.MustRead(".env")
+	logger := myLogger.SetupLogger(myLogger.EnvProd)
+	config := config.MustRead(logger, ".env")
 
-	logger := logger.SetupLogger(config.Env)
+	logger = myLogger.SetupLogger(config.Env)
 
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
