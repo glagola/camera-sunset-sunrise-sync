@@ -11,7 +11,7 @@ RUN go mod download && go mod verify
 
 COPY . .
 
-RUN cd ./cmd/camera-sunset-sunrise-sync && go build -v -o ./app .
+RUN cd ./cmd/camera-sunset-sunrise-sync && go build -o ./app .
 
 
 
