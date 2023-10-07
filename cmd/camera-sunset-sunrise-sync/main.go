@@ -1,21 +1,23 @@
 package main
 
 import (
-	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/glagola/camera-sunset-sunrise-sync/internal/adapter/asecam"
 	sun "github.com/glagola/camera-sunset-sunrise-sync/internal/adapter/sunrise-sunset.org"
 	"github.com/glagola/camera-sunset-sunrise-sync/internal/config"
-	myLogger "github.com/glagola/camera-sunset-sunrise-sync/internal/logger"
+	"github.com/glagola/camera-sunset-sunrise-sync/internal/utils"
 )
 
 func main() {
-	logger := myLogger.SetupLogger(myLogger.EnvProd)
-	config := config.MustRead(logger, ".env")
+	logger := utils.SetupLogger(utils.EnvProd)
+	config := config.MustRead(
+		utils.LoggerForPackage(logger, "config"), 
+		".env",
+	)
 
-	logger = myLogger.SetupLogger(config.Env)
+	logger = utils.SetupLogger(config.Env)
 
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
@@ -23,7 +25,7 @@ func main() {
 
 	camera := asecam.New(
 		httpClient,
-		logger.With(slog.String("adapter", "asecam")),
+		utils.LoggerForPackage(logger, "asecam"),
 		config.Host,
 		config.User,
 		config.HashedPassword,
@@ -31,7 +33,7 @@ func main() {
 
 	sun := sun.New(
 		httpClient, 
-		logger.With(slog.String("adapter", "api.sunrise-sunset.org")),
+		utils.LoggerForPackage(logger, "api.sunrise-sunset.org"),
 	)
 
 	sunTimings, err := sun.GetTimings(
