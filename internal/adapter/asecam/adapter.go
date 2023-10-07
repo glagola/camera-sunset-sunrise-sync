@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/glagola/camera-sunset-sunrise-sync/internal/utils"
@@ -17,7 +18,7 @@ import (
 type Adapter struct {
 	client         *http.Client
 	logger         *slog.Logger
-	domain         string
+	baseUrl        *url.URL
 	user           string
 	hashedPassword string
 }
@@ -41,11 +42,11 @@ type imageSettings struct {
 	Mirror               int       `json:"mirror"`
 	Flip                 int       `json:"flip"`
 	WdrEnable            int       `json:"wdr_enable"`
-	IrcutDelay           int       `json:"ircut_delay"`
+	IRCutDelay           int       `json:"ircut_delay"`
 	AntiFlickerEnable    int       `json:"anti_flicker_enable"`
 	BacklightEnable      int       `json:"backlight_enable"`
 	TvStandard           int       `json:"tv_standard"`
-	DrcStrenght          int       `json:"drc_strenght"`
+	DrcStrength          int       `json:"drc_strenght"`
 	NrEnable             int       `json:"nr_enable"`
 	LedBrightness        int       `json:"led_brightness"`
 	MaxLedBrightness     int       `json:"max_led_brightness"`
@@ -65,14 +66,32 @@ func (s *schedule) Set(new time.Time) {
 	s.Minute = new.Minute()
 }
 
-func New(client *http.Client, logger *slog.Logger, domain, user, hashedPassword string) *Adapter {
+func New(client *http.Client, logger *slog.Logger, baseUrl, user, hashedPassword string) (*Adapter, error) {
+	_url, err := url.Parse(baseUrl)
+
+	if err != nil {
+		logger.Error(
+			"Invalid baseUrl",
+			slog.String("baseUrl", baseUrl),
+			slog.String("err", err.Error()),
+		)
+		return nil, fmt.Errorf(`invalid baseUrl = "%s"`, baseUrl)
+	}
+
+	if _url.Host == "" {
+		logger.Error("BaseUrl must have domain/ip address", slog.String("baseUrl", baseUrl))
+		return nil, fmt.Errorf("baseUrl must have domain/ip address")
+	}
+
+	_url.Path = strings.TrimRight(_url.Path, "/")
+
 	return &Adapter{
 		client:         client,
 		logger:         logger,
-		domain:         domain,
+		baseUrl:        _url,
 		user:           user,
 		hashedPassword: hashedPassword,
-	}
+	}, nil
 }
 
 func (s *Adapter) buildUrl(params map[string]string) string {
@@ -85,9 +104,9 @@ func (s *Adapter) buildUrl(params map[string]string) string {
 	query.Add("password", s.hashedPassword)
 
 	_url := url.URL{
-		Scheme:   "http",
-		Host:     s.domain,
-		Path:     "/cgi-bin/web.cgi",
+		Scheme:   s.baseUrl.Scheme,
+		Host:     s.baseUrl.Host,
+		Path:     fmt.Sprintf("%s/cgi-bin/web.cgi", s.baseUrl.Path),
 		RawQuery: query.Encode(),
 	}
 
@@ -179,9 +198,9 @@ func (s *Adapter) getTimezones() (timezones, error) {
 	result := make(timezones, 34)
 
 	url := (&url.URL{
-		Scheme: "http",
-		Host:   s.domain,
-		Path:   "/view/time_setting.html",
+		Scheme: s.baseUrl.Scheme,
+		Host:   s.baseUrl.Host,
+		Path:   fmt.Sprintf("%s/view/time_setting.html", s.baseUrl.Path),
 	}).String()
 
 	response, err := s.client.Get(url)
@@ -289,7 +308,7 @@ func (s *Adapter) getTimezoneId() (int, error) {
 	}
 
 	logger.Debug(
-		"Fetched timezone id", 
+		"Fetched timezone id",
 		slog.Int("timezoneId", systemTimeSettings.Timezone),
 	)
 
@@ -325,9 +344,9 @@ func (s *Adapter) UpdateDayTimings(sunrise, sunset time.Time) error {
 
 	logger.Info("Camera's day light settings fetched")
 	logger.Debug(
-		"Camera's day light settings fetched", 
-		slog.Any("sunrise", scheduleLogRecord{ imageSettings.DayBegin, timezone }),
-		slog.Any("sunset", scheduleLogRecord{ imageSettings.DayEnd, timezone }),
+		"Camera's day light settings fetched",
+		slog.Any("sunrise", scheduleLogRecord{imageSettings.DayBegin, timezone}),
+		slog.Any("sunset", scheduleLogRecord{imageSettings.DayEnd, timezone}),
 	)
 
 	imageSettings.DayBegin.Set(sunrise.In(timezone))

@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/glagola/camera-sunset-sunrise-sync/internal/adapter/asecam"
@@ -13,7 +14,7 @@ import (
 func main() {
 	logger := utils.SetupLogger(utils.EnvProd)
 	config := config.MustRead(
-		utils.LoggerForPackage(logger, "config"), 
+		utils.LoggerForPackage(logger, "config"),
 		".env",
 	)
 
@@ -23,16 +24,20 @@ func main() {
 		Timeout: 10 * time.Second,
 	}
 
-	camera := asecam.New(
+	camera, err := asecam.New(
 		httpClient,
 		utils.LoggerForPackage(logger, "asecam"),
-		config.Host,
+		config.BaseUrl,
 		config.User,
 		config.HashedPassword,
 	)
 
+	if err != nil {
+		os.Exit(1)
+	}
+
 	sun := sun.New(
-		httpClient, 
+		httpClient,
 		utils.LoggerForPackage(logger, "api.sunrise-sunset.org"),
 	)
 
@@ -41,10 +46,10 @@ func main() {
 		config.Location.Longitude,
 	)
 	if err != nil {
-		panic(err)
+		os.Exit(1)
 	}
 
 	if err := camera.UpdateDayTimings(sunTimings.Sunrise, sunTimings.Sunset); err != nil {
-		panic(err)
+		os.Exit(1)
 	}
 }

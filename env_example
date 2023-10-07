@@ -1,4 +1,4 @@
-CAMERA_HOST=
+CAMERA_BASE_URL=
 
 # Credentials
 CAMERA_USER=

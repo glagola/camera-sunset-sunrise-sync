@@ -10,7 +10,7 @@ import (
 
 type Config struct {
 	Env            string `env:"ENV" env-default:"prod"` // dev, prod
-	Host           string `env:"CAMERA_HOST" env-required:"true"`
+	BaseUrl        string `env:"CAMERA_BASE_URL" env-required:"true"`
 	User           string `env:"CAMERA_USER" env-default:"admin"`
 	HashedPassword string `env:"CAMERA_HASHED_PASSWORD" env-required:"true"`
 
@@ -27,7 +27,7 @@ func MustRead(logger *slog.Logger, pathToFile string) *Config {
 
 	if err := cleanenv.ReadConfig(pathToFile, &cfg); err != nil {
 		logger.Error("Failed to load config from file", slog.String("file", pathToFile), slog.Any("error", err.Error()))
-		
+
 		if err := cleanenv.ReadEnv(&cfg); err != nil {
 			logger.Error("Failed to load config from environment variables", slog.Any("error", err.Error()))
 			os.Exit(1)
