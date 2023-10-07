@@ -6,9 +6,8 @@ import (
 	"os"
 )
 
-
 const (
-	EnvDev = "dev"
+	EnvDev  = "dev"
 	EnvProd = "prod"
 )
 
@@ -34,10 +33,10 @@ func SetupLogger(requestedEnv string) *slog.Logger {
 	logger := slog.New(handler)
 
 	logger.Info(
-		"Logger init", 
+		"Logger init",
 		slog.Group(
-			"environment", 
-			slog.String("loaded", env), 
+			"environment",
+			slog.String("loaded", env),
 			slog.String("requested", requestedEnv),
 		),
 	)
@@ -47,16 +46,20 @@ func SetupLogger(requestedEnv string) *slog.Logger {
 	return logger
 }
 
-
 func LogHttpError(logger *slog.Logger, message string, url string, response *http.Response) {
-	logger.Error(
-		message,
-		slog.String("url", url),
-		slog.Group(
+	attrs := []any{slog.String("url", url)}
+
+	if response != nil {
+		attrs = append(attrs, slog.Group(
 			"response",
 			slog.String("msg", response.Status),
 			slog.Int("code", response.StatusCode),
-		),
+		))
+	}
+
+	logger.Error(
+		message,
+		attrs...,
 	)
 }
 
