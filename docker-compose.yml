@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  camera-sunset-sunrise-sync:
+    build:
+      context: .
+    container_name: camera-sunset-sunrise-sync
+    env_file:
+      - .env
+
