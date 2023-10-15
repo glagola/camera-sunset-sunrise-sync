@@ -26,7 +26,7 @@ func MustRead(logger *slog.Logger, pathToFile string) *Config {
 	cfg := Config{}
 
 	if err := cleanenv.ReadConfig(pathToFile, &cfg); err != nil {
-		logger.Error("Failed to load config from file", slog.String("file", pathToFile), slog.Any("error", err.Error()))
+		logger.Warn("Failed to load config from file", slog.String("file", pathToFile), slog.Any("error", err.Error()))
 
 		if err := cleanenv.ReadEnv(&cfg); err != nil {
 			logger.Error("Failed to load config from environment variables", slog.Any("error", err.Error()))
